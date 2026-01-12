@@ -17,8 +17,9 @@ class CommandGenerator:
     # テンプレートディレクトリのパス
     TEMPLATE_DIR = Path(__file__).parent.parent.parent / "templates" / "powershell"
     
-    # テンプレートファイル名（Entra ID用のみ）
-    TEMPLATE_ENTRA = "create_entra_user_with_license.ps1"  # Entra ID用（統一）
+    # テンプレートファイル名（Entra ID用）
+    TEMPLATE_REGULAR = "onboarding_regular.ps1"  # 正社員用（Entra ID専用）
+    TEMPLATE_CONTRACT = "onboarding_contract.ps1"  # 派遣用（Entra ID専用）
     
     @staticmethod
     def generate_sam_account_name(employee_name: str) -> str:
@@ -120,8 +121,17 @@ class CommandGenerator:
             judgment: AI判断結果（ライセンス種別を含む）
             
         Returns:
-            str: 生成されたPowerShellコマンド（スクリプト実行形式）
+            str: 生成されたPowerShellコマンド
         """
+        # テンプレートを選択（雇用形態に基づく）
+        if judgment.employment_type == "正社員":
+            template_name = CommandGenerator.TEMPLATE_REGULAR
+        else:  # 派遣
+            template_name = CommandGenerator.TEMPLATE_CONTRACT
+        
+        # テンプレートを読み込む
+        template = CommandGenerator.load_template(template_name)
+        
         # 変数を準備
         employee_name = request_data.get("employee_name", "")
         company = request_data.get("company", "")
@@ -138,55 +148,27 @@ class CommandGenerator:
         # UserPrincipalNameを生成
         user_principal_name = f"{mail_nickname}@{tenant_domain}"
         
-        # PowerShellスクリプトの実行コマンドを生成
-        script_path = "create_entra_user_with_license.ps1"
+        generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # AI判断結果からライセンスSKUを取得
-        license_sku = judgment.license_sku
-        license_enabled = judgment.license_enabled
+        # 変数をマッピング
+        variables = {
+            "{employee_name}": employee_name,
+            "{sam_account_name}": mail_nickname,
+            "{company_domain}": tenant_domain,
+            "{department}": department,
+            "{generated_at}": generated_at,
+            "{license_sku}": judgment.license_sku,
+            "{license_type}": judgment.license_type,
+        }
         
-        # AssignLicenseパラメータの文字列表現（AI判断で常にtrue）
-        assign_license_str = "$true" if license_enabled else "$false"
+        # 派遣の場合は有効期限も追加
+        if judgment.expiration_date:
+            variables["{contract_end_date}"] = judgment.expiration_date
         
-        # スクリプト内の変数を設定するコマンドを生成
-        command_lines = [
-            "# ============================================================================",
-            "# Entra ID ユーザー作成スクリプト実行",
-            "# 生成日時: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "# AI判断結果に基づいて自動生成されました",
-            "# ============================================================================",
-            "",
-            "# スクリプト内の変数を設定（必要に応じて編集してください）",
-            f'$DisplayName = "{employee_name}"',
-            f'$MailNickname = "{mail_nickname}"',
-            f'$UserPrincipalName = "{user_principal_name}"',
-            f'$Department = "{department}"',
-            f'$UsageLocation = "JP"',
-            f'$InitialPassword = "TempPassword123!"  # 実際のパスワードに変更してください',
-            f'$LicenseSkuPartNumber = "{license_sku}"  # AI判断結果: {judgment.license_type}',
-            "",
-            "# スクリプトファイルのパス（スクリプトと同じディレクトリにある場合）",
-            f'$ScriptPath = ".\\{script_path}"',
-            "",
-            "# ============================================================================",
-            "# Dry-run モードで確認（推奨：まずはこちらで実行内容を確認）",
-            "# ============================================================================",
-            f'& $ScriptPath -DryRun $true -AssignLicense {assign_license_str}',
-            "",
-            "# ============================================================================",
-            "# 実際に実行する場合（上記のDry-runで問題ないことを確認してから）",
-            "# ============================================================================",
-            f'# & $ScriptPath -DryRun $false -AssignLicense {assign_license_str}',
-            "",
-            "# ============================================================================",
-            "# 注意事項",
-            "# ============================================================================",
-            "# 1. スクリプトを実行する前に、上記の変数を確認・編集してください",
-            "# 2. 特に $InitialPassword は強力なパスワードに変更してください",
-            f"# 3. ライセンス: {judgment.license_type} (SKU: {license_sku})",
-            "# 4. テナント名（$UserPrincipalName の @ より後）を実際のテナント名に変更してください",
-            "# 5. このコマンドは人がWindows PowerShellで実行してください（自動実行されません）"
-        ]
+        # テンプレート内の変数を置換
+        command = template
+        for key, value in variables.items():
+            command = command.replace(key, str(value))
         
-        return "\n".join(command_lines)
+        return command
 
