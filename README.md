@@ -40,6 +40,26 @@ BPO向け業務自動化AIデモシステムは、人が毎日PowerShellで行�
 
 ### 2. 環境構築
 
+#### Windowsの場合
+
+```powershell
+# PowerShellまたはコマンドプロンプトで実行
+
+# プロジェクトディレクトリに移動
+cd entersystem2
+
+# Python仮想環境を作成（推奨）
+python -m venv venv
+
+# 仮想環境を有効化
+venv\Scripts\activate
+
+# 依存パッケージをインストール
+pip install -r requirements.txt
+```
+
+#### macOS/Linuxの場合
+
 ```bash
 # プロジェクトディレクトリに移動
 cd entersystem2
@@ -48,9 +68,6 @@ cd entersystem2
 python -m venv venv
 
 # 仮想環境を有効化
-# Windowsの場合:
-venv\Scripts\activate
-# macOS/Linuxの場合:
 source venv/bin/activate
 
 # 依存パッケージをインストール
@@ -77,6 +94,23 @@ OPENAI_MODEL=gpt-4
 
 ### 開発モードで起動
 
+#### Windowsの場合
+
+```powershell
+# PowerShellで実行
+
+# 仮想環境が有効化されていることを確認
+# （プロンプトの前に (venv) が表示されているはず）
+
+# FastAPIアプリケーションを起動
+python -m app.main
+
+# または uvicorn を直接使用
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+#### macOS/Linuxの場合
+
 ```bash
 # 仮想環境が有効化されていることを確認
 # FastAPIアプリケーションを起動
@@ -86,6 +120,8 @@ python -m app.main
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+**注意**: Windowsファイアウォールの警告が出る場合は、「アクセスを許可」を選択してください。
+
 ### ブラウザでアクセス
 
 起動後、以下のURLにアクセスしてください：
@@ -93,6 +129,11 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 http://localhost:8000
 ```
+
+**Windowsでの注意事項**:
+- Windowsファイアウォールの警告が出る場合は、「プライベートネットワーク」と「パブリックネットワーク」の両方でアクセスを許可してください
+- 同じPCのブラウザから `http://localhost:8000` でアクセスできます
+- 他のPCからアクセスする場合は `http://<このPCのIPアドレス>:8000` を使用してください
 
 ## Vercelへのデプロイ
 
