@@ -62,14 +62,6 @@
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="assignLicense" name="assignLicense" value="true">
-                        Microsoft 365 ライセンスを付与する
-                    </label>
-                    <p class="form-hint">チェックを外すと、ユーザー作成のみ実行されます（ライセンスが無いテナントでも動作します）</p>
-                </div>
-
                 <div class="form-actions">
                     <button type="submit" class="btn-primary" id="submitBtn">PowerShellコマンドを生成</button>
                 </div>
@@ -81,7 +73,13 @@
             <!-- 結果表示エリア -->
             <div id="resultArea" class="result-area" style="display: none;">
                 <h2>AI判断結果</h2>
-                <div class="judgment-text" id="judgmentText"></div>
+                <div class="judgment-box">
+                    <div class="judgment-text" id="judgmentText"></div>
+                    <div class="judgment-notice">
+                        <p>※ 実行は自動では行われません。</p>
+                        <p>※ 下記の PowerShell コマンドを Windows PowerShell で実行してください。</p>
+                    </div>
+                </div>
                 
                 <h2>生成されたPowerShellコマンド</h2>
                 <div class="code-block">
@@ -113,16 +111,14 @@
             errorMessage.style.display = 'none';
             resultArea.style.display = 'none';
             
-            // フォームデータを取得
+            // フォームデータを取得（ライセンス選択は含めない、AI判断のみ）
             const formData = new FormData(this);
-            const assignLicenseCheckbox = document.getElementById('assignLicense');
             const data = {
                 company: formData.get('company'),
                 task_type: formData.get('task_type'),
                 employee_name: formData.get('employee_name'),
                 employment_type: formData.get('employment_type'),
-                department: formData.get('department'),
-                assign_license: assignLicenseCheckbox.checked  // チェックボックスの状態を取得
+                department: formData.get('department')
             };
             
             try {

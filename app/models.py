@@ -46,12 +46,6 @@ class OnboardingRequest(BaseModel):
         examples=["営業部"]
     )
     
-    assign_license: bool = Field(
-        default=False,
-        description="Microsoft 365 ライセンスを付与するかどうか",
-        examples=[False]
-    )
-    
     @field_validator("company", "employee_name", "department")
     @classmethod
     def validate_no_special_chars(cls, v: str) -> str:
@@ -71,13 +65,16 @@ class OnboardingRequest(BaseModel):
 
 
 class JudgmentResult(BaseModel):
-    """判断結果モデル"""
+    """判断結果モデル（AI判断結果）"""
     
     employment_type: Literal["正社員", "派遣"]
     user_type: str  # "標準ユーザー" または "制限ユーザー"
-    license_type: str  # "Microsoft 365 E3" または "Microsoft 365 Basic"
+    license_type: str  # "Microsoft 365 E3" または "Microsoft 365 Business Basic"
+    license_sku: str  # "ENTERPRISEPACK" または "BUSINESS_BASIC"
+    license_enabled: bool  # ライセンス付与の有無（AI判断で常にtrue）
     has_expiration: bool  # 有効期限の有無
     expiration_date: Optional[str] = None  # 有効期限（YYYY-MM-DD形式）
+    explanation: str  # UI表示用の説明文（自然言語）
 
 
 class OnboardingResponse(BaseModel):

@@ -117,28 +117,24 @@ async def create_onboarding(request: OnboardingRequest):
         request_dict = request.model_dump()
         logger.info(f"入力受信: {request_dict}")
         
-        # 判断ロジックの実行
+        # AI判断ロジックの実行（雇用形態から自動判断）
         judgment = JudgmentService.judge(request_dict)
         logger.info(
-            f"判断結果: {judgment.employment_type} -> "
-            f"{judgment.user_type} + {judgment.license_type}"
+            f"AI判断結果: {judgment.employment_type} -> "
+            f"{judgment.user_type} + {judgment.license_type} (SKU: {judgment.license_sku})"
         )
         
-        # assign_licenseの値を取得（デフォルトFalse）
-        assign_license = request_dict.get("assign_license", False)
+        # AI判断結果の説明文を生成（UI表示用）
+        judgment_text = JudgmentService.generate_judgment_text(judgment)
         
-        # 判断結果の説明文を生成（assign_licenseを含める）
-        judgment_text = JudgmentService.generate_judgment_text(judgment, assign_license=assign_license)
-        
-        # PowerShellコマンドを生成（Entra ID用）
-        # 注意: 現在はEntra ID用のコマンド生成を使用
-        # オンプレAD用の場合は CommandGenerator.generate_command() を使用
+        # PowerShellコマンドを生成（Entra ID用、AI判断結果に基づく）
+        # 注意: ライセンス種別はAI判断結果から自動取得
         powershell_command = CommandGenerator.generate_entra_id_command(
             request_dict,
-            assign_license=assign_license
+            judgment=judgment
         )
         
-        logger.info(f"PowerShell生成完了 (AssignLicense: {assign_license})")
+        logger.info(f"PowerShell生成完了 (License: {judgment.license_type}, SKU: {judgment.license_sku})")
         
         return OnboardingResponse(
             status="success",

@@ -166,14 +166,14 @@ class CommandGenerator:
     @staticmethod
     def generate_entra_id_command(
         request_data: Dict,
-        assign_license: bool = False
+        judgment: JudgmentResult
     ) -> str:
         """
-        Entra ID用のPowerShellコマンドを生成する
+        Entra ID用のPowerShellコマンドを生成する（AI判断結果に基づく）
         
         Args:
             request_data: リクエストデータ
-            assign_license: ライセンス付与の有無
+            judgment: AI判断結果（ライセンス種別を含む）
             
         Returns:
             str: 生成されたPowerShellコマンド（スクリプト実行形式）
@@ -197,14 +197,19 @@ class CommandGenerator:
         # PowerShellスクリプトの実行コマンドを生成
         script_path = "create_entra_user_with_license.ps1"
         
-        # AssignLicenseパラメータの文字列表現
-        assign_license_str = "$true" if assign_license else "$false"
+        # AI判断結果からライセンスSKUを取得
+        license_sku = judgment.license_sku
+        license_enabled = judgment.license_enabled
+        
+        # AssignLicenseパラメータの文字列表現（AI判断で常にtrue）
+        assign_license_str = "$true" if license_enabled else "$false"
         
         # スクリプト内の変数を設定するコマンドを生成
         command_lines = [
             "# ============================================================================",
             "# Entra ID ユーザー作成スクリプト実行",
             "# 生成日時: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "# AI判断結果に基づいて自動生成されました",
             "# ============================================================================",
             "",
             "# スクリプト内の変数を設定（必要に応じて編集してください）",
@@ -214,6 +219,7 @@ class CommandGenerator:
             f'$Department = "{department}"',
             f'$UsageLocation = "JP"',
             f'$InitialPassword = "TempPassword123!"  # 実際のパスワードに変更してください',
+            f'$LicenseSkuPartNumber = "{license_sku}"  # AI判断結果: {judgment.license_type}',
             "",
             "# スクリプトファイルのパス（スクリプトと同じディレクトリにある場合）",
             f'$ScriptPath = ".\\{script_path}"',
@@ -233,10 +239,9 @@ class CommandGenerator:
             "# ============================================================================",
             "# 1. スクリプトを実行する前に、上記の変数を確認・編集してください",
             "# 2. 特に $InitialPassword は強力なパスワードに変更してください",
-            f"# 3. AssignLicense = {assign_license_str}: " + (
-                "ライセンスを付与します" if assign_license else "ライセンス付与をスキップします"
-            ),
-            "# 4. テナント名（$UserPrincipalName の @ より後）を実際のテナント名に変更してください"
+            f"# 3. ライセンス: {judgment.license_type} (SKU: {license_sku})",
+            "# 4. テナント名（$UserPrincipalName の @ より後）を実際のテナント名に変更してください",
+            "# 5. このコマンドは人がWindows PowerShellで実行してください（自動実行されません）"
         ]
         
         return "\n".join(command_lines)

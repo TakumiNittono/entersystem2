@@ -9,18 +9,20 @@ from app.models import JudgmentResult
 
 
 class JudgmentService:
-    """判断ロジックを実装するサービス"""
+    """判断ロジックを実装するサービス（AI判断のみ）"""
     
-    # 判断ルール定義
+    # 判断ルール定義（固定ルール）
     JUDGMENT_RULES = {
         "正社員": {
             "user_type": "標準ユーザー",
             "license_type": "Microsoft 365 E3",
+            "license_sku": "ENTERPRISEPACK",
             "has_expiration": False
         },
         "派遣": {
             "user_type": "制限ユーザー",
-            "license_type": "Microsoft 365 Basic",
+            "license_type": "Microsoft 365 Business Basic",
+            "license_sku": "BUSINESS_BASIC",
             "has_expiration": True
         }
     }
@@ -49,41 +51,41 @@ class JudgmentService:
             # デフォルトで1年後を設定
             expiration_date = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d")
         
+        # UI表示用の説明文を生成
+        if employment_type == "正社員":
+            explanation = (
+                f"このユーザーは【{employment_type}】のため、"
+                f"{rule['license_type']}を付与する{rule['user_type']}として作成します。"
+            )
+        else:  # 派遣
+            explanation = (
+                f"このユーザーは【{employment_type}】のため、"
+                f"{rule['license_type']}を付与する{rule['user_type']}として作成します。"
+                f"また、契約終了日（{expiration_date}）に有効期限を設定します。"
+            )
+        
         return JudgmentResult(
             employment_type=employment_type,
             user_type=rule["user_type"],
             license_type=rule["license_type"],
+            license_sku=rule["license_sku"],
+            license_enabled=True,  # AI判断では常にライセンスを付与
             has_expiration=rule["has_expiration"],
-            expiration_date=expiration_date
+            expiration_date=expiration_date,
+            explanation=explanation
         )
     
     @staticmethod
-    def generate_judgment_text(judgment: JudgmentResult, assign_license: bool = False) -> str:
+    def generate_judgment_text(judgment: JudgmentResult) -> str:
         """
-        判断結果を文章で説明する
+        AI判断結果をUI表示用の文章で説明する
         
         Args:
             judgment: 判断結果
-            assign_license: ライセンス付与の有無（デフォルト: False）
             
         Returns:
-            str: 判断結果の説明文
+            str: UI表示用の説明文
         """
-        if judgment.employment_type == "正社員":
-            base_text = (
-                f"このユーザーは正社員のため、{judgment.user_type}として作成します。"
-            )
-        else:  # 派遣
-            base_text = (
-                f"このユーザーは派遣社員のため、{judgment.user_type}として作成します。"
-                f"また、契約終了日（{judgment.expiration_date}）に有効期限を設定します。"
-            )
-        
-        # ライセンス付与の説明を追加
-        if assign_license:
-            base_text += f"\n\n{judgment.license_type} ライセンスを付与します。"
-        else:
-            base_text += "\n\n※ ライセンス付与はスキップされます（このテナントにはライセンスが存在しない想定です）。"
-        
-        return base_text
+        # judgment.explanationをそのまま使用（既にUI表示用に生成済み）
+        return judgment.explanation
 

@@ -207,14 +207,32 @@ footer {
     font-size: 1.3em;
 }
 
-.judgment-text {
+.judgment-box {
     background-color: #f8f9fa;
-    padding: 15px;
+    padding: 20px;
     border-radius: 4px;
     border-left: 4px solid #3498db;
     margin-bottom: 30px;
+}
+
+.judgment-text {
     line-height: 1.8;
     color: #333;
+    font-size: 1.05em;
+    margin-bottom: 15px;
+}
+
+.judgment-notice {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #dee2e6;
+}
+
+.judgment-notice p {
+    margin: 5px 0;
+    color: #6c757d;
+    font-size: 0.9em;
+    line-height: 1.6;
 }
 
 .code-block {
