@@ -94,6 +94,49 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 http://localhost:8000
 ```
 
+## Vercelへのデプロイ
+
+### 方法1: Vercel CLIを使用
+
+```bash
+# Vercel CLIをインストール（初回のみ）
+npm i -g vercel
+
+# Vercelにログイン
+vercel login
+
+# プロジェクトをデプロイ
+vercel
+
+# 本番環境にデプロイ
+vercel --prod
+```
+
+### 方法2: GitHub連携
+
+1. [Vercel](https://vercel.com)にアクセス
+2. GitHubアカウントでログイン
+3. 「New Project」をクリック
+4. GitHubリポジトリ `TakumiNittono/entersystem2` を選択
+5. プロジェクト設定：
+   - Framework Preset: Other
+   - Root Directory: ./
+   - Build Command: （空欄）
+   - Output Directory: （空欄）
+6. 環境変数を設定（Settings > Environment Variables）：
+   - `OPENAI_API_KEY`: あなたのOpenAI APIキー
+   - `OPENAI_MODEL`: `gpt-4` または `gpt-3.5-turbo`
+7. 「Deploy」をクリック
+
+### 環境変数の設定
+
+Vercelのダッシュボードで以下の環境変数を設定してください：
+
+- `OPENAI_API_KEY`: OpenAI APIキー
+- `OPENAI_MODEL`: `gpt-4`（デフォルト）
+- `DEBUG`: `False`
+- `LOG_LEVEL`: `INFO`
+
 ## デモ手順
 
 ### シナリオ1: 正社員の入社処理
