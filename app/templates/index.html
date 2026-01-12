@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BPO業務自動化AIデモシステム</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>BPO業務自動化AIデモシステム</h1>
+            <p class="subtitle">入社処理のPowerShellコマンド生成</p>
+        </header>
+
+        <main>
+            <form id="onboardingForm" method="post" action="/api/onboarding">
+                <div class="form-group">
+                    <label for="company">顧客名 <span class="required">*</span></label>
+                    <input type="text" id="company" name="company" required maxlength="100" placeholder="株式会社サンプル">
+                </div>
+
+                <div class="form-group">
+                    <label for="task_type">タスク種別 <span class="required">*</span></label>
+                    <select id="task_type" name="task_type" required class="select-dropdown">
+                        <option value="onboarding" selected>入社処理（Onboarding）</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="employee_name">従業員名 <span class="required">*</span></label>
+                    <input type="text" id="employee_name" name="employee_name" required maxlength="50" placeholder="山田 太郎">
+                </div>
+
+                <div class="form-group">
+                    <label>雇用形態 <span class="required">*</span></label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="employment_type" value="正社員" required>
+                            正社員
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="employment_type" value="派遣" required>
+                            派遣
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="department">部署 <span class="required">*</span></label>
+                    <select id="department" name="department" required class="select-dropdown">
+                        <option value="">選択してください</option>
+                        <option value="営業部">営業部</option>
+                        <option value="開発部">開発部</option>
+                        <option value="総務部">総務部</option>
+                        <option value="人事部">人事部</option>
+                        <option value="経理部">経理部</option>
+                        <option value="マーケティング部">マーケティング部</option>
+                        <option value="サポート部">サポート部</option>
+                        <option value="管理部">管理部</option>
+                        <option value="その他">その他</option>
+                    </select>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary" id="submitBtn">PowerShellコマンドを生成</button>
+                </div>
+            </form>
+
+            <!-- エラーメッセージ表示エリア -->
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+
+            <!-- 結果表示エリア -->
+            <div id="resultArea" class="result-area" style="display: none;">
+                <h2>AI判断結果</h2>
+                <div class="judgment-text" id="judgmentText"></div>
+                
+                <h2>生成されたPowerShellコマンド</h2>
+                <div class="code-block">
+                    <pre id="powershellCommand"></pre>
+                    <button class="btn-copy" onclick="copyToClipboard()">コピー</button>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p class="notice">
+                ⚠️ このシステムは完全自動化システムではありません。<br>
+                実行はWindowsのPowerShellで人が行う設計です。
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        document.getElementById('onboardingForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const errorMessage = document.getElementById('errorMessage');
+            const resultArea = document.getElementById('resultArea');
+            
+            // ローディング状態
+            submitBtn.disabled = true;
+            submitBtn.textContent = '生成中...';
+            errorMessage.style.display = 'none';
+            resultArea.style.display = 'none';
+            
+            // フォームデータを取得
+            const formData = new FormData(this);
+            const data = {
+                company: formData.get('company'),
+                task_type: formData.get('task_type'),
+                employee_name: formData.get('employee_name'),
+                employment_type: formData.get('employment_type'),
+                department: formData.get('department')
+            };
+            
+            try {
+                const response = await fetch('/api/onboarding', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    // 結果を表示
+                    document.getElementById('judgmentText').textContent = result.judgment;
+                    document.getElementById('powershellCommand').textContent = result.powershell_command;
+                    resultArea.style.display = 'block';
+                    
+                    // 結果までスクロール
+                    resultArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                    // エラーを表示
+                    errorMessage.textContent = result.message || 'エラーが発生しました';
+                    errorMessage.style.display = 'block';
+                }
+            } catch (error) {
+                errorMessage.textContent = '通信エラーが発生しました: ' + error.message;
+                errorMessage.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'PowerShellコマンドを生成';
+            }
+        });
+        
+        function copyToClipboard() {
+            const commandText = document.getElementById('powershellCommand').textContent;
+            navigator.clipboard.writeText(commandText).then(function() {
+                const btn = document.querySelector('.btn-copy');
+                const originalText = btn.textContent;
+                btn.textContent = 'コピーしました！';
+                btn.style.backgroundColor = '#27ae60';
+                setTimeout(function() {
+                    btn.textContent = originalText;
+                    btn.style.backgroundColor = '#3498db';
+                }, 2000);
+            }).catch(function(err) {
+                alert('コピーに失敗しました: ' + err);
+            });
+        }
+    </script>
+</body>
+</html>
+
