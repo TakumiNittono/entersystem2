@@ -227,11 +227,12 @@ function Get-LicenseSkuId {
         $targetSku = $skus | Where-Object { $_.SkuPartNumber -eq $SkuPartNumber }
         
         if ($null -eq $targetSku) {
-            Write-ErrorMessage "指定されたライセンス SKU '$SkuPartNumber' が見つかりません。テナントにこのライセンスが割り当てられていない可能性があります。"
+            Write-WarningMessage "指定されたライセンス SKU '$SkuPartNumber' が見つかりません。テナントにこのライセンスが割り当てられていない可能性があります。"
             Write-InfoMessage "利用可能な SKU 一覧:"
             $skus | ForEach-Object {
                 Write-Host "  - $($_.SkuPartNumber): $($_.SkuId)" -ForegroundColor Gray
             }
+            Write-WarningMessage "ライセンス付与はスキップされますが、ユーザー作成は続行します。"
             return $null
         }
         
@@ -239,7 +240,8 @@ function Get-LicenseSkuId {
         return $targetSku.SkuId
     }
     catch {
-        Write-ErrorMessage "ライセンス SKU 取得中にエラーが発生しました: $($_.Exception.Message)"
+        Write-WarningMessage "ライセンス SKU 取得中にエラーが発生しました: $($_.Exception.Message)"
+        Write-WarningMessage "ライセンス付与はスキップされますが、ユーザー作成は続行します。"
         return $null
     }
 }
@@ -387,7 +389,8 @@ function Show-ExecutionResult {
     param(
         [object]$User,
         [string]$SkuPartNumber,
-        [bool]$AssignLicense
+        [bool]$AssignLicense,
+        [bool]$LicenseAssigned = $false
     )
     
     Write-Host ""
@@ -403,8 +406,13 @@ function Show-ExecutionResult {
         Write-Host "  ユーザー ID: $($User.Id)" -ForegroundColor White
         Write-Host "  部署: $($User.Department)" -ForegroundColor White
         
-        if ($AssignLicense) {
-            Write-Host "  ライセンス: $SkuPartNumber (Microsoft 365 E3)" -ForegroundColor White
+        if ($AssignLicense -and $LicenseAssigned) {
+            Write-Host "  ライセンス: $SkuPartNumber" -ForegroundColor White
+            Write-SuccessMessage "ライセンス付与: 成功"
+        }
+        elseif ($AssignLicense -and -not $LicenseAssigned) {
+            Write-Host "  ライセンス: 付与されませんでした（SKUが見つからないか、エラーが発生しました）" -ForegroundColor Yellow
+            Write-WarningMessage "ユーザーは作成されましたが、ライセンスは付与されていません"
         }
         else {
             Write-Host "  ライセンス: 付与されていません（AssignLicense = `$false）" -ForegroundColor Gray
@@ -516,8 +524,8 @@ $SkuId = $null
 if ($AssignLicense) {
     $SkuId = Get-LicenseSkuId -SkuPartNumber $LicenseSkuPartNumber
     if ($null -eq $SkuId) {
-        Write-ErrorMessage "ライセンス SKU ID の取得に失敗しました。処理を中断します。"
-        exit 1
+        Write-WarningMessage "ライセンス SKU ID の取得に失敗しました。"
+        Write-WarningMessage "ライセンス付与はスキップされますが、ユーザー作成は続行します。"
     }
     Write-Host ""
 }
@@ -542,20 +550,24 @@ if ($null -eq $newUser) {
 }
 Write-Host ""
 
-# 4. ライセンスを付与（AssignLicense = $true の場合のみ）
-if ($AssignLicense) {
-    if ($null -eq $SkuId) {
-        Write-ErrorMessage "ライセンス SKU ID が取得できていません。処理を中断します。"
-        exit 1
-    }
-    
+# 4. ライセンスを付与（AssignLicense = $true かつ SKU ID が取得できた場合のみ）
+$LicenseAssigned = $false
+if ($AssignLicense -and $null -ne $SkuId) {
     $licenseResult = Set-UserLicense -UserId $newUser.Id -SkuId $SkuId
-    if (-not $licenseResult) {
-        Write-ErrorMessage "ライセンス付与に失敗しました。処理を中断します。"
+    if ($licenseResult) {
+        Write-SuccessMessage "ライセンスを付与しました"
+        $LicenseAssigned = $true
+    }
+    else {
+        Write-WarningMessage "ライセンス付与に失敗しました。"
         Write-WarningMessage "ユーザーは作成されましたが、ライセンスは付与されていません"
         Write-WarningMessage "手動でライセンスを付与してください: $($newUser.UserPrincipalName)"
-        exit 1
     }
+    Write-Host ""
+}
+elseif ($AssignLicense -and $null -eq $SkuId) {
+    Write-WarningMessage "ライセンス SKU が取得できなかったため、ライセンス付与をスキップしました"
+    Write-WarningMessage "ユーザーは正常に作成されました"
     Write-Host ""
 }
 else {
@@ -565,7 +577,7 @@ else {
 }
 
 # 5. 実行結果を表示
-Show-ExecutionResult -User $newUser -SkuPartNumber $LicenseSkuPartNumber -AssignLicense $AssignLicense
+Show-ExecutionResult -User $newUser -SkuPartNumber $LicenseSkuPartNumber -AssignLicense $AssignLicense -LicenseAssigned $LicenseAssigned
 
 Write-SuccessMessage "すべての処理が正常に完了しました"
 Write-Host ""

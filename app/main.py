@@ -129,7 +129,8 @@ async def create_onboarding(request: OnboardingRequest):
         
         # PowerShellコマンドを生成（Entra ID用、AI判断結果に基づく）
         # 注意: ライセンス種別はAI判断結果から自動取得
-        powershell_command = CommandGenerator.generate_entra_id_command(
+        # 常に create_entra_user_with_license.ps1 を使用
+        powershell_command = CommandGenerator.generate_command(
             request_dict,
             judgment=judgment
         )

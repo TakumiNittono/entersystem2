@@ -17,10 +17,8 @@ class CommandGenerator:
     # テンプレートディレクトリのパス
     TEMPLATE_DIR = Path(__file__).parent.parent.parent / "templates" / "powershell"
     
-    # テンプレートファイル名
-    TEMPLATE_REGULAR = "onboarding_regular.ps1"  # 正社員用（オンプレAD）
-    TEMPLATE_CONTRACT = "onboarding_contract.ps1"  # 派遣用（オンプレAD）
-    TEMPLATE_ENTRA_ID = "create_entra_user_with_license.ps1"  # Entra ID用
+    # テンプレートファイル名（Entra ID用のみ）
+    TEMPLATE_ENTRA = "create_entra_user_with_license.ps1"  # Entra ID用（統一）
     
     @staticmethod
     def generate_sam_account_name(employee_name: str) -> str:
@@ -115,61 +113,7 @@ class CommandGenerator:
         judgment: JudgmentResult
     ) -> str:
         """
-        PowerShellコマンドを生成する
-        
-        Args:
-            request_data: リクエストデータ
-            judgment: 判断結果
-            
-        Returns:
-            str: 生成されたPowerShellコマンド
-        """
-        # テンプレートを選択
-        if judgment.employment_type == "正社員":
-            template_name = CommandGenerator.TEMPLATE_REGULAR
-        else:  # 派遣
-            template_name = CommandGenerator.TEMPLATE_CONTRACT
-        
-        # テンプレートを読み込む
-        template = CommandGenerator.load_template(template_name)
-        
-        # 変数を準備
-        employee_name = request_data.get("employee_name", "")
-        company = request_data.get("company", "")
-        department = request_data.get("department", "")
-        
-        # 変数変換
-        sam_account_name = CommandGenerator.generate_sam_account_name(employee_name)
-        company_domain = CommandGenerator.generate_company_domain(company)
-        generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        # 変数をマッピング
-        variables = {
-            "{employee_name}": employee_name,
-            "{sam_account_name}": sam_account_name,
-            "{company_domain}": company_domain,
-            "{department}": department,
-            "{generated_at}": generated_at,
-        }
-        
-        # 派遣の場合は有効期限も追加
-        if judgment.expiration_date:
-            variables["{contract_end_date}"] = judgment.expiration_date
-        
-        # テンプレート内の変数を置換
-        command = template
-        for key, value in variables.items():
-            command = command.replace(key, str(value))
-        
-        return command
-    
-    @staticmethod
-    def generate_entra_id_command(
-        request_data: Dict,
-        judgment: JudgmentResult
-    ) -> str:
-        """
-        Entra ID用のPowerShellコマンドを生成する（AI判断結果に基づく）
+        PowerShellコマンドを生成する（Entra ID用、AI判断結果に基づく）
         
         Args:
             request_data: リクエストデータ
