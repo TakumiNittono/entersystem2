@@ -144,8 +144,9 @@ entersystem2/
 │
 └── templates/
     └── powershell/          # PowerShellテンプレート
-        ├── onboarding_regular.ps1
-        └── onboarding_contract.ps1
+        ├── onboarding_regular.ps1          # オンプレAD用（正社員）
+        ├── onboarding_contract.ps1         # オンプレAD用（派遣）
+        └── create_entra_user_with_license.ps1  # Entra ID用（推奨）
 ```
 
 ## APIエンドポイント
@@ -216,9 +217,57 @@ uvicorn app.main:app --port 8080
 
 このプロジェクトは営業用PoC / デモ用途です。
 
+## PowerShellスクリプト
+
+### Entra ID用スクリプト（推奨）
+
+`templates/powershell/create_entra_user_with_license.ps1` は、Microsoft Entra ID（Azure AD）ネイティブでユーザー作成とライセンス付与を行う実務レベルのスクリプトです。
+
+#### 特徴
+
+- **オンプレミス Active Directory 不使用**: Entra ID ネイティブのみ
+- **Microsoft Graph PowerShell SDK 使用**: 最新のAPIを使用
+- **Dry-run モード必須**: 事故防止のため事前確認が可能
+- **半自動実行モデル**: 人が実行する設計
+- **実務レベル**: PoC / デモ / 本番に耐える構成
+
+#### 使用方法
+
+```powershell
+# 1. Microsoft Graph PowerShell モジュールをインストール（初回のみ）
+Install-Module -Name Microsoft.Graph -Scope CurrentUser
+
+# 2. Dry-run モードで実行（推奨：まずはこちらで確認）
+.\create_entra_user_with_license.ps1 -DryRun $true
+
+# 3. 実際に実行
+.\create_entra_user_with_license.ps1 -DryRun $false
+```
+
+#### 必要な権限
+
+- `User.ReadWrite.All`
+- `Directory.ReadWrite.All`
+- `Organization.Read.All`
+
+#### 設定項目
+
+スクリプト内の変数を編集してください：
+
+```powershell
+$DisplayName = "山田 太郎"
+$MailNickname = "yamada.taro"
+$UserPrincipalName = "$MailNickname@yourtenant.onmicrosoft.com"  # テナント名を変更
+$Department = "営業部"
+$UsageLocation = "JP"
+$InitialPassword = "TempPassword123!"  # 強力なパスワードを推奨
+$LicenseSkuPartNumber = "ENTERPRISEPACK"  # Microsoft 365 E3
+```
+
 ## 参考資料
 
 - [FastAPI公式ドキュメント](https://fastapi.tiangolo.com/)
 - [OpenAI API ドキュメント](https://platform.openai.com/docs)
+- [Microsoft Graph PowerShell SDK](https://learn.microsoft.com/powershell/microsoftgraph/)
 - [PowerShell Active Directory モジュール](https://docs.microsoft.com/powershell/module/activedirectory/)
 
