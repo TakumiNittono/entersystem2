@@ -124,12 +124,21 @@ async def create_onboarding(request: OnboardingRequest):
             f"{judgment.user_type} + {judgment.license_type}"
         )
         
-        # 判断結果の説明文を生成
-        judgment_text = JudgmentService.generate_judgment_text(judgment)
+        # assign_licenseの値を取得（デフォルトFalse）
+        assign_license = request_dict.get("assign_license", False)
         
-        # PowerShellコマンドを生成
-        powershell_command = CommandGenerator.generate_command(request_dict, judgment)
-        logger.info("PowerShell生成完了")
+        # 判断結果の説明文を生成（assign_licenseを含める）
+        judgment_text = JudgmentService.generate_judgment_text(judgment, assign_license=assign_license)
+        
+        # PowerShellコマンドを生成（Entra ID用）
+        # 注意: 現在はEntra ID用のコマンド生成を使用
+        # オンプレAD用の場合は CommandGenerator.generate_command() を使用
+        powershell_command = CommandGenerator.generate_entra_id_command(
+            request_dict,
+            assign_license=assign_license
+        )
+        
+        logger.info(f"PowerShell生成完了 (AssignLicense: {assign_license})")
         
         return OnboardingResponse(
             status="success",

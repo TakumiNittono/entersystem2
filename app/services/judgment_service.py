@@ -58,25 +58,32 @@ class JudgmentService:
         )
     
     @staticmethod
-    def generate_judgment_text(judgment: JudgmentResult) -> str:
+    def generate_judgment_text(judgment: JudgmentResult, assign_license: bool = False) -> str:
         """
         判断結果を文章で説明する
         
         Args:
             judgment: 判断結果
+            assign_license: ライセンス付与の有無（デフォルト: False）
             
         Returns:
             str: 判断結果の説明文
         """
         if judgment.employment_type == "正社員":
-            return (
-                f"このユーザーは正社員のため、{judgment.user_type}として作成し、"
-                f"{judgment.license_type} ライセンスを付与します。"
+            base_text = (
+                f"このユーザーは正社員のため、{judgment.user_type}として作成します。"
             )
         else:  # 派遣
-            return (
-                f"このユーザーは派遣社員のため、{judgment.user_type}として作成し、"
-                f"{judgment.license_type} ライセンスを付与します。"
+            base_text = (
+                f"このユーザーは派遣社員のため、{judgment.user_type}として作成します。"
                 f"また、契約終了日（{judgment.expiration_date}）に有効期限を設定します。"
             )
+        
+        # ライセンス付与の説明を追加
+        if assign_license:
+            base_text += f"\n\n{judgment.license_type} ライセンスを付与します。"
+        else:
+            base_text += "\n\n※ ライセンス付与はスキップされます（このテナントにはライセンスが存在しない想定です）。"
+        
+        return base_text
 

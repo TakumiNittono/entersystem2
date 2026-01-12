@@ -18,8 +18,9 @@ class CommandGenerator:
     TEMPLATE_DIR = Path(__file__).parent.parent.parent / "templates" / "powershell"
     
     # テンプレートファイル名
-    TEMPLATE_REGULAR = "onboarding_regular.ps1"  # 正社員用
-    TEMPLATE_CONTRACT = "onboarding_contract.ps1"  # 派遣用
+    TEMPLATE_REGULAR = "onboarding_regular.ps1"  # 正社員用（オンプレAD）
+    TEMPLATE_CONTRACT = "onboarding_contract.ps1"  # 派遣用（オンプレAD）
+    TEMPLATE_ENTRA_ID = "create_entra_user_with_license.ps1"  # Entra ID用
     
     @staticmethod
     def generate_sam_account_name(employee_name: str) -> str:
@@ -161,4 +162,82 @@ class CommandGenerator:
             command = command.replace(key, str(value))
         
         return command
+    
+    @staticmethod
+    def generate_entra_id_command(
+        request_data: Dict,
+        assign_license: bool = False
+    ) -> str:
+        """
+        Entra ID用のPowerShellコマンドを生成する
+        
+        Args:
+            request_data: リクエストデータ
+            assign_license: ライセンス付与の有無
+            
+        Returns:
+            str: 生成されたPowerShellコマンド（スクリプト実行形式）
+        """
+        # 変数を準備
+        employee_name = request_data.get("employee_name", "")
+        company = request_data.get("company", "")
+        department = request_data.get("department", "")
+        
+        # MailNicknameを生成（英数字のみ）
+        mail_nickname = CommandGenerator.generate_sam_account_name(employee_name)
+        
+        # テナントドメインを生成（簡易版）
+        company_domain_base = CommandGenerator.generate_company_domain(company)
+        # onmicrosoft.com形式に変換
+        tenant_domain = f"{company_domain_base.split('.')[0]}.onmicrosoft.com"
+        
+        # UserPrincipalNameを生成
+        user_principal_name = f"{mail_nickname}@{tenant_domain}"
+        
+        # PowerShellスクリプトの実行コマンドを生成
+        script_path = "create_entra_user_with_license.ps1"
+        
+        # AssignLicenseパラメータの文字列表現
+        assign_license_str = "$true" if assign_license else "$false"
+        
+        # スクリプト内の変数を設定するコマンドを生成
+        command_lines = [
+            "# ============================================================================",
+            "# Entra ID ユーザー作成スクリプト実行",
+            "# 生成日時: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "# ============================================================================",
+            "",
+            "# スクリプト内の変数を設定（必要に応じて編集してください）",
+            f'$DisplayName = "{employee_name}"',
+            f'$MailNickname = "{mail_nickname}"',
+            f'$UserPrincipalName = "{user_principal_name}"',
+            f'$Department = "{department}"',
+            f'$UsageLocation = "JP"',
+            f'$InitialPassword = "TempPassword123!"  # 実際のパスワードに変更してください',
+            "",
+            "# スクリプトファイルのパス（スクリプトと同じディレクトリにある場合）",
+            f'$ScriptPath = ".\\{script_path}"',
+            "",
+            "# ============================================================================",
+            "# Dry-run モードで確認（推奨：まずはこちらで実行内容を確認）",
+            "# ============================================================================",
+            f'& $ScriptPath -DryRun $true -AssignLicense {assign_license_str}',
+            "",
+            "# ============================================================================",
+            "# 実際に実行する場合（上記のDry-runで問題ないことを確認してから）",
+            "# ============================================================================",
+            f'# & $ScriptPath -DryRun $false -AssignLicense {assign_license_str}',
+            "",
+            "# ============================================================================",
+            "# 注意事項",
+            "# ============================================================================",
+            "# 1. スクリプトを実行する前に、上記の変数を確認・編集してください",
+            "# 2. 特に $InitialPassword は強力なパスワードに変更してください",
+            f"# 3. AssignLicense = {assign_license_str}: " + (
+                "ライセンスを付与します" if assign_license else "ライセンス付与をスキップします"
+            ),
+            "# 4. テナント名（$UserPrincipalName の @ より後）を実際のテナント名に変更してください"
+        ]
+        
+        return "\n".join(command_lines)
 

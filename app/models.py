@@ -46,6 +46,12 @@ class OnboardingRequest(BaseModel):
         examples=["営業部"]
     )
     
+    assign_license: bool = Field(
+        default=False,
+        description="Microsoft 365 ライセンスを付与するかどうか",
+        examples=[False]
+    )
+    
     @field_validator("company", "employee_name", "department")
     @classmethod
     def validate_no_special_chars(cls, v: str) -> str:

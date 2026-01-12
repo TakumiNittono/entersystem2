@@ -259,6 +259,30 @@ footer {
     cursor: not-allowed;
 }
 
+/* チェックボックス */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-weight: normal;
+    margin-bottom: 5px;
+}
+
+.checkbox-label input[type="checkbox"] {
+    margin-right: 8px;
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+}
+
+.form-hint {
+    font-size: 0.85em;
+    color: #7f8c8d;
+    margin-top: 5px;
+    margin-left: 26px;
+    line-height: 1.5;
+}
+
 /* レスポンシブ対応 */
 @media (max-width: 600px) {
     .container {

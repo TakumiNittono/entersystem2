@@ -17,25 +17,39 @@
     $true: 実行内容を表示するのみ（実際には実行しない）
     $false: 実際にユーザー作成とライセンス付与を実行
 
-.EXAMPLE
-    # Dry-run モードで実行（推奨：まずはこちらで確認）
-    .\create_entra_user_with_license.ps1 -DryRun $true
+.PARAMETER AssignLicense
+    ライセンス付与の有効/無効を指定します。
+    $true: ユーザー作成後に Microsoft 365 E3 ライセンスを付与
+    $false: ライセンス付与をスキップ（ユーザー作成のみ）
+    デフォルト: $false（PoC / BPO用途でライセンスが無いテナントでも動作するように）
 
 .EXAMPLE
-    # 実際に実行
-    .\create_entra_user_with_license.ps1 -DryRun $false
+    # Dry-run モードで実行（推奨：まずはこちらで確認）
+    .\create_entra_user_with_license.ps1 -DryRun $true -AssignLicense $false
+
+.EXAMPLE
+    # ユーザー作成のみ実行（ライセンス付与なし）
+    .\create_entra_user_with_license.ps1 -DryRun $false -AssignLicense $false
+
+.EXAMPLE
+    # ユーザー作成とライセンス付与を実行
+    .\create_entra_user_with_license.ps1 -DryRun $false -AssignLicense $true
 
 .NOTES
     作成日: 2026-01-11
-    バージョン: 1.0.0
+    バージョン: 2.1.0
     要件: Microsoft.Graph モジュールが必要
     必要な権限: User.ReadWrite.All, Directory.ReadWrite.All, Organization.Read.All
+    改修内容: AssignLicenseパラメータを追加（ライセンス付与をオプション化）
 #>
 
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [bool]$DryRun
+    [bool]$DryRun,
+    
+    [Parameter(Mandatory = $false)]
+    [bool]$AssignLicense = $false
 )
 
 # ============================================================================
@@ -44,11 +58,11 @@ param(
 
 # ユーザー情報の定義
 $DisplayName = "山田 太郎"
-$MailNickname = "yamada.taro"  # UserPrincipalName の @ より前の部分
-$UserPrincipalName = "$MailNickname@yourtenant.onmicrosoft.com"  # テナント名を変更してください
+$MailNickname = "yamada.taro"  # UserPrincipalName の @ より前の部分（英数字のみ、記号は自動除去）
+$UserPrincipalName = "$MailNickname@yourtenant.onmicrosoft.com"  # テナント名を変更してください（必ず @xxxx.onmicrosoft.com 形式）
 $Department = "営業部"
 $UsageLocation = "JP"  # 日本
-$InitialPassword = "TempPassword123!"  # 初期パスワード（強力なパスワードを推奨）
+$InitialPassword = "TempPassword123!"  # 初期パスワード（強力なパスワードを推奨、画面には表示されません）
 
 # ライセンス情報
 $LicenseSkuPartNumber = "ENTERPRISEPACK"  # Microsoft 365 E3
@@ -87,10 +101,27 @@ function Write-WarningMessage {
 function Write-ErrorMessage {
     <#
     .SYNOPSIS
-        エラーメッセージを表示
+        エラーメッセージを表示（日本語で明確に）
     #>
     param([string]$Message)
     Write-Error "[ERROR] $Message"
+}
+
+function Test-MicrosoftGraphModule {
+    <#
+    .SYNOPSIS
+        Microsoft.Graph モジュールの存在確認
+    #>
+    try {
+        $module = Get-Module -ListAvailable -Name "Microsoft.Graph" -ErrorAction SilentlyContinue
+        if ($null -eq $module) {
+            return $false
+        }
+        return $true
+    }
+    catch {
+        return $false
+    }
 }
 
 function Test-MgGraphConnection {
@@ -131,7 +162,7 @@ function Connect-ToMicrosoftGraph {
         # 接続確認
         $context = Get-MgContext
         if ($null -eq $context) {
-            Write-ErrorMessage "Microsoft Graph への接続に失敗しました"
+            Write-ErrorMessage "Microsoft Graph への接続に失敗しました。接続を確認してください。"
             exit 1
         }
         
@@ -147,22 +178,36 @@ function Connect-ToMicrosoftGraph {
     }
 }
 
+function Format-MailNickname {
+    <#
+    .SYNOPSIS
+        MailNickname から英数字以外の記号を除去
+    #>
+    param([string]$MailNickname)
+    
+    # 英数字以外の文字を除去
+    $cleaned = $MailNickname -replace '[^a-zA-Z0-9]', ''
+    
+    return $cleaned
+}
+
 function Test-UserExists {
     <#
     .SYNOPSIS
-        ユーザーの存在確認
+        ユーザーの存在確認（Get-MgUser -UserId を使用）
     #>
     param([string]$UserPrincipalName)
     
     try {
-        $user = Get-MgUser -Filter "userPrincipalName eq '$UserPrincipalName'" -ErrorAction SilentlyContinue
+        # Get-MgUser -UserId でユーザーを取得（存在しない場合はエラー）
+        $user = Get-MgUser -UserId $UserPrincipalName -ErrorAction SilentlyContinue
         if ($null -ne $user) {
             return $true
         }
         return $false
     }
     catch {
-        Write-ErrorMessage "ユーザー存在確認中にエラーが発生しました: $($_.Exception.Message)"
+        # ユーザーが存在しない場合は false を返す（エラーではない）
         return $false
     }
 }
@@ -182,7 +227,7 @@ function Get-LicenseSkuId {
         $targetSku = $skus | Where-Object { $_.SkuPartNumber -eq $SkuPartNumber }
         
         if ($null -eq $targetSku) {
-            Write-ErrorMessage "指定されたライセンス SKU '$SkuPartNumber' が見つかりません"
+            Write-ErrorMessage "指定されたライセンス SKU '$SkuPartNumber' が見つかりません。テナントにこのライセンスが割り当てられていない可能性があります。"
             Write-InfoMessage "利用可能な SKU 一覧:"
             $skus | ForEach-Object {
                 Write-Host "  - $($_.SkuPartNumber): $($_.SkuId)" -ForegroundColor Gray
@@ -202,7 +247,7 @@ function Get-LicenseSkuId {
 function New-EntraUser {
     <#
     .SYNOPSIS
-        Entra ID ユーザーを作成
+        Entra ID ユーザーを作成（New-MgUser のみ使用）
     #>
     param(
         [string]$DisplayName,
@@ -233,7 +278,7 @@ function New-EntraUser {
             AccountEnabled = $true
         }
         
-        # ユーザー作成
+        # ユーザー作成（New-MgUser のみ使用）
         $newUser = New-MgUser @UserParams
         
         Write-SuccessMessage "ユーザーを作成しました: $($newUser.DisplayName) ($($newUser.UserPrincipalName))"
@@ -288,6 +333,8 @@ function Show-DryRunPreview {
     .SYNOPSIS
         Dry-run モードでの実行内容プレビューを表示
     #>
+    param([bool]$AssignLicense)
+    
     Write-Host ""
     Write-Host "========================================" -ForegroundColor Yellow
     Write-Host "  DRY-RUN モード: 実行内容プレビュー" -ForegroundColor Yellow
@@ -307,15 +354,23 @@ function Show-DryRunPreview {
     Write-Host "   UsageLocation: $UsageLocation" -ForegroundColor Gray
     Write-Host "   AccountEnabled: True" -ForegroundColor Gray
     Write-Host "   ForceChangePasswordNextSignIn: True" -ForegroundColor Gray
+    Write-Host "   初期パスワード: [非表示]" -ForegroundColor Gray
     Write-Host ""
     
-    Write-Host "3. ライセンス SKU 取得" -ForegroundColor White
-    Write-Host "   SkuPartNumber: $LicenseSkuPartNumber" -ForegroundColor Gray
-    Write-Host ""
-    
-    Write-Host "4. Microsoft 365 ライセンス付与" -ForegroundColor White
-    Write-Host "   ライセンス: $LicenseSkuPartNumber (Microsoft 365 E3)" -ForegroundColor Gray
-    Write-Host ""
+    if ($AssignLicense) {
+        Write-Host "3. ライセンス SKU 取得" -ForegroundColor White
+        Write-Host "   SkuPartNumber: $LicenseSkuPartNumber" -ForegroundColor Gray
+        Write-Host ""
+        
+        Write-Host "4. Microsoft 365 ライセンス付与" -ForegroundColor White
+        Write-Host "   ライセンス: $LicenseSkuPartNumber (Microsoft 365 E3)" -ForegroundColor Gray
+        Write-Host ""
+    }
+    else {
+        Write-Host "3. ライセンス付与: スキップ" -ForegroundColor White
+        Write-Host "   AssignLicense = `$false のため、ライセンス付与は実行されません" -ForegroundColor Gray
+        Write-Host ""
+    }
     
     Write-Host "========================================" -ForegroundColor Yellow
     Write-Host "  実際には実行されません" -ForegroundColor Yellow
@@ -327,11 +382,12 @@ function Show-DryRunPreview {
 function Show-ExecutionResult {
     <#
     .SYNOPSIS
-        実行結果を表示
+        実行結果を表示（パスワードは表示しない）
     #>
     param(
         [object]$User,
-        [string]$SkuPartNumber
+        [string]$SkuPartNumber,
+        [bool]$AssignLicense
     )
     
     Write-Host ""
@@ -346,9 +402,16 @@ function Show-ExecutionResult {
         Write-Host "  UPN: $($User.UserPrincipalName)" -ForegroundColor White
         Write-Host "  ユーザー ID: $($User.Id)" -ForegroundColor White
         Write-Host "  部署: $($User.Department)" -ForegroundColor White
-        Write-Host "  ライセンス: $SkuPartNumber (Microsoft 365 E3)" -ForegroundColor White
+        
+        if ($AssignLicense) {
+            Write-Host "  ライセンス: $SkuPartNumber (Microsoft 365 E3)" -ForegroundColor White
+        }
+        else {
+            Write-Host "  ライセンス: 付与されていません（AssignLicense = `$false）" -ForegroundColor Gray
+        }
+        
         Write-Host ""
-        Write-WarningMessage "初期パスワード: $InitialPassword"
+        Write-WarningMessage "初期パスワードは設定されていますが、セキュリティのため表示していません"
         Write-WarningMessage "初回ログイン時にパスワード変更が求められます"
     }
     else {
@@ -368,12 +431,44 @@ Write-Host "  Entra ID ユーザー作成ツール" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
+# Microsoft.Graph モジュールの存在確認
+Write-InfoMessage "Microsoft.Graph モジュールの存在を確認しています..."
+if (-not (Test-MicrosoftGraphModule)) {
+    Write-ErrorMessage "Microsoft.Graph モジュールがインストールされていません"
+    Write-InfoMessage "以下のコマンドでインストールしてください:"
+    Write-Host "  Install-Module -Name Microsoft.Graph -Scope CurrentUser" -ForegroundColor Yellow
+    Write-InfoMessage "インストール後、PowerShell を再起動してから再度実行してください"
+    exit 1
+}
+Write-SuccessMessage "Microsoft.Graph モジュールが見つかりました"
+
+# MailNickname の記号除去処理
+$MailNickname = Format-MailNickname -MailNickname $MailNickname
+Write-InfoMessage "MailNickname を処理しました: $MailNickname"
+
+# UserPrincipalName の再構築（MailNickname が変更された場合）
+if ($UserPrincipalName -notmatch "^$MailNickname@") {
+    $UserPrincipalName = "$MailNickname@$($UserPrincipalName -split '@')[1]"
+    Write-InfoMessage "UserPrincipalName を更新しました: $UserPrincipalName"
+}
+
+Write-Host ""
+
 # Dry-run モードの表示
 if ($DryRun) {
     Write-WarningMessage "Dry-run モード: 有効（実際には実行しません）"
 }
 else {
     Write-WarningMessage "Dry-run モード: 無効（実際に実行します）"
+}
+
+# AssignLicense パラメータの表示
+if ($AssignLicense) {
+    Write-InfoMessage "ライセンス付与: 有効（Microsoft 365 E3 を付与します）"
+}
+else {
+    Write-InfoMessage "ライセンス付与: 無効（ユーザー作成のみ実行します）"
+    Write-InfoMessage "このテナントにはライセンスが存在しない想定です"
 }
 Write-Host ""
 
@@ -392,7 +487,7 @@ else {
 
 # Dry-run モードの場合
 if ($DryRun) {
-    Show-DryRunPreview
+    Show-DryRunPreview -AssignLicense $AssignLicense
     Write-InfoMessage "Dry-run モードのため、実際の操作は実行されませんでした"
     exit 0
 }
@@ -410,21 +505,27 @@ Write-Host ""
 # 1. ユーザー存在確認
 Write-InfoMessage "ユーザーの存在確認を実行しています..."
 if (Test-UserExists -UserPrincipalName $UserPrincipalName) {
-    Write-ErrorMessage "ユーザー '$UserPrincipalName' は既に存在します"
-    Write-InfoMessage "処理を中断します"
+    Write-ErrorMessage "ユーザー '$UserPrincipalName' は既に存在します。処理を中断します。"
     exit 1
 }
 Write-SuccessMessage "ユーザー '$UserPrincipalName' は存在しません（作成可能）"
 Write-Host ""
 
-# 2. ライセンス SKU ID を取得
-$SkuId = Get-LicenseSkuId -SkuPartNumber $LicenseSkuPartNumber
-if ($null -eq $SkuId) {
-    Write-ErrorMessage "ライセンス SKU ID の取得に失敗しました"
-    Write-InfoMessage "処理を中断します"
-    exit 1
+# 2. ライセンス SKU ID を取得（AssignLicense = $true の場合のみ）
+$SkuId = $null
+if ($AssignLicense) {
+    $SkuId = Get-LicenseSkuId -SkuPartNumber $LicenseSkuPartNumber
+    if ($null -eq $SkuId) {
+        Write-ErrorMessage "ライセンス SKU ID の取得に失敗しました。処理を中断します。"
+        exit 1
+    }
+    Write-Host ""
 }
-Write-Host ""
+else {
+    Write-InfoMessage "ライセンス付与はスキップされました（AssignLicense = `$false）"
+    Write-InfoMessage "このテナントにはライセンスが存在しない想定です"
+    Write-Host ""
+}
 
 # 3. Entra ID ユーザーを作成
 $newUser = New-EntraUser `
@@ -436,25 +537,35 @@ $newUser = New-EntraUser `
     -Password $InitialPassword
 
 if ($null -eq $newUser) {
-    Write-ErrorMessage "ユーザー作成に失敗しました"
-    Write-InfoMessage "処理を中断します"
+    Write-ErrorMessage "ユーザー作成に失敗しました。処理を中断します。"
     exit 1
 }
 Write-Host ""
 
-# 4. ライセンスを付与
-$licenseResult = Set-UserLicense -UserId $newUser.Id -SkuId $SkuId
-if (-not $licenseResult) {
-    Write-ErrorMessage "ライセンス付与に失敗しました"
-    Write-WarningMessage "ユーザーは作成されましたが、ライセンスは付与されていません"
-    Write-WarningMessage "手動でライセンスを付与してください: $($newUser.UserPrincipalName)"
-    exit 1
+# 4. ライセンスを付与（AssignLicense = $true の場合のみ）
+if ($AssignLicense) {
+    if ($null -eq $SkuId) {
+        Write-ErrorMessage "ライセンス SKU ID が取得できていません。処理を中断します。"
+        exit 1
+    }
+    
+    $licenseResult = Set-UserLicense -UserId $newUser.Id -SkuId $SkuId
+    if (-not $licenseResult) {
+        Write-ErrorMessage "ライセンス付与に失敗しました。処理を中断します。"
+        Write-WarningMessage "ユーザーは作成されましたが、ライセンスは付与されていません"
+        Write-WarningMessage "手動でライセンスを付与してください: $($newUser.UserPrincipalName)"
+        exit 1
+    }
+    Write-Host ""
 }
-Write-Host ""
+else {
+    Write-InfoMessage "ライセンス付与はスキップされました（AssignLicense = `$false）"
+    Write-InfoMessage "このテナントにはライセンスが存在しない想定です"
+    Write-Host ""
+}
 
 # 5. 実行結果を表示
-Show-ExecutionResult -User $newUser -SkuPartNumber $LicenseSkuPartNumber
+Show-ExecutionResult -User $newUser -SkuPartNumber $LicenseSkuPartNumber -AssignLicense $AssignLicense
 
 Write-SuccessMessage "すべての処理が正常に完了しました"
 Write-Host ""
-
