@@ -21,8 +21,8 @@ class JudgmentService:
         },
         "派遣": {
             "user_type": "制限ユーザー",
-            "license_type": "Microsoft 365 Business Basic",
-            "license_sku": "BUSINESS_BASIC",
+            "license_type": "Microsoft 365 Basic",
+            "license_sku": "BASICPACK",
             "has_expiration": True
         }
     }

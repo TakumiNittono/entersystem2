@@ -24,13 +24,13 @@ class CommandGenerator:
     @staticmethod
     def generate_sam_account_name(employee_name: str) -> str:
         """
-        従業員名からSamAccountNameを生成（簡易版）
+        従業員名からMailNicknameを生成（Entra ID用）
         
         Args:
             employee_name: 従業員名（例: "山田 太郎"）
             
         Returns:
-            str: SamAccountName（例: "yamada.taro"）
+            str: MailNickname（例: "yamada.taro"）
         """
         # 日本語名をローマ字に変換する簡易実装
         # 実際の運用では、より正確なローマ字変換ライブラリを使用することを推奨
@@ -50,8 +50,8 @@ class CommandGenerator:
         if not name:
             name = "user"
         
-        # 最大20文字に制限（Active Directoryの制限）
-        name = name[:20]
+        # Entra ID の MailNickname は64文字まで
+        name = name[:64]
         
         return name
     
